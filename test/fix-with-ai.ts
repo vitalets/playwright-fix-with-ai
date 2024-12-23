@@ -97,6 +97,14 @@ function belongsToNodeModules(file: string) {
   return file.includes(`${path.sep}node_modules${path.sep}`);
 }
 
+/**
+ * Parses stack trace line.
+ * See in Playwright: 
+ * https://github.com/microsoft/playwright/blob/release-1.49/packages/playwright-core/src/utilsBundle.ts#L47
+ * 
+ * Example:
+ * "    at someFunction (/path/to/file.js:10:15)" -> { file: '/path/to/file.js', line: 10, column: 15 }
+ */
 function parseStackTraceLine(line: string) {
   const frame = stackUtils.parseLine(line);
   if (!frame)
