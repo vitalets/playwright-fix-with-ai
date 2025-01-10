@@ -46,14 +46,14 @@ function buildPrompt({ title, error, ariaSnapshot }: {
     error: TestInfoError, 
     ariaSnapshot: string
 }) {
-  const errorMessage = error.message;
+  const errorMessage = stripAnsiEscapes(error.message || '');
   const snippet = getCodeSnippet(error);
 
   if (!errorMessage || !snippet) return '';
 
   return promptTemplate
     .replace('{title}', title)
-    .replace('{error}', stripAnsiEscapes(errorMessage))
+    .replace('{error}', errorMessage)
     .replace('{snippet}', snippet)
     .replace('{ariaSnapshot}', ariaSnapshot);
 }
