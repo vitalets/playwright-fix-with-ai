@@ -1,18 +1,15 @@
 /**
- * Helper functions to add Fix with AI attachment to the failed playwright test.
+ * Fix with AI attachment to failed Playwright tests.
  */
 import fs from 'node:fs';
-import path from 'node:path';
-import url from 'node:url';
-import StackUtils from 'stack-utils';
-import { TestInfoError } from '@playwright/test';
-
-const stackUtils = new StackUtils({ internals: StackUtils.nodeInternals() });
+import { Page, TestInfo, TestInfoError } from '@playwright/test';
+// @ts-ignore
+import { parseStackTraceLine } from 'playwright-core/lib/utilsBundle';
 
 const promptTemplate = `
 You are an expert in Playwright testing. 
 Fix the error in the Playwright test "{title}". 
-- Provide response as diff formatted code snippet.
+- Provide response as a diff highlighted code snippet.
 - Strictly rely on the ARIA snapshot of the page.
 - Avoid adding any new code.
 - Avoid adding comments to the code.
@@ -28,13 +25,23 @@ Code snippet of the failing test:
 {snippet}
 
 ARIA snapshot of the page:
+
 {ariaSnapshot}
 `.trim();
 
-/**
- * Builds AI prompt to fix error in Playwright test.
- */
-export function buildPrompt({ title, error, ariaSnapshot }: { 
+export async function attachFixWithAI(page: Page, testInfo: TestInfo) {
+  const willBeRetried = testInfo.retry < testInfo.project.retries;
+  if (testInfo.error && !willBeRetried) {
+    const prompt = buildPrompt({
+      title: testInfo.title,
+      error: testInfo.error,
+      ariaSnapshot: await page.locator('html').ariaSnapshot(),
+    });
+    await testInfo.attach('🤖 Fix with AI: copy prompt and paste to AI chat', { body: prompt });
+  }
+}
+
+function buildPrompt({ title, error, ariaSnapshot }: { 
     title: string, 
     error: TestInfoError, 
     ariaSnapshot: string
@@ -53,7 +60,6 @@ export function buildPrompt({ title, error, ariaSnapshot }: {
 
 /**
  * Escapes terminal colors from a string.
- * Extracted from Playwright.
  * See: https://github.com/microsoft/playwright/blob/release-1.49/packages/playwright/src/reporters/base.ts#L491
  */
 function stripAnsiEscapes(str: string): string {
@@ -64,8 +70,7 @@ function stripAnsiEscapes(str: string): string {
 
 /**
  * Get code snippet by the error stack.
- * Extracted from Playwright:
- * https://github.com/microsoft/playwright/blob/release-1.49/packages/playwright/src/reporters/internalReporter.ts#L115
+ * See: https://github.com/microsoft/playwright/blob/release-1.49/packages/playwright/src/reporters/internalReporter.ts#L115
  */
 function getCodeSnippet(error: TestInfoError) {
   const location = getErrorLocation(error);
@@ -87,38 +92,7 @@ function getErrorLocation(error: TestInfoError) {
   const stackLines = lines.slice(firstStackLine);
   for (const line of stackLines) {
     const frame = parseStackTraceLine(line);
-    if (!frame || !frame.file) continue;
-    if (belongsToNodeModules(frame.file)) continue;
+    if (!frame || !frame.file || frame.file.includes(`node_modules`)) continue;
     return { file: frame.file, column: frame.column || 0, line: frame.line || 0 };
   }
-}
-
-function belongsToNodeModules(file: string) {
-  return file.includes(`${path.sep}node_modules${path.sep}`);
-}
-
-/**
- * Parses stack trace line.
- * See in Playwright: 
- * https://github.com/microsoft/playwright/blob/release-1.49/packages/playwright-core/src/utilsBundle.ts#L47
- * 
- * Example:
- * "    at someFunction (/path/to/file.js:10:15)" -> { file: '/path/to/file.js', line: 10, column: 15 }
- */
-function parseStackTraceLine(line: string) {
-  const frame = stackUtils.parseLine(line);
-  if (!frame)
-    return null;
-  if (!process.env.PWDEBUGIMPL && (frame.file?.startsWith('internal') || frame.file?.startsWith('node:')))
-    return null;
-  if (!frame.file)
-    return null;
-  // ESM files return file:// URLs, see here: https://github.com/tapjs/stack-utils/issues/60
-  const file = frame.file.startsWith('file://') ? url.fileURLToPath(frame.file) : path.resolve(process.cwd(), frame.file);
-  return {
-    file,
-    line: frame.line || 0,
-    column: frame.column || 0,
-    function: frame.function,
-  };
 }
