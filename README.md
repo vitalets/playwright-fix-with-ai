@@ -1,3 +1,3 @@
-# "Fix with AI" button in Playwright report
+# "Fix with AI" Button in Playwright Report
 
 Example repo.

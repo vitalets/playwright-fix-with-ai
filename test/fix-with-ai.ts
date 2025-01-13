@@ -9,13 +9,14 @@ import { parseStackTraceLine } from 'playwright-core/lib/utilsBundle';
 const promptTemplate = `
 You are an expert in Playwright testing. 
 Fix the error in the Playwright test "{title}". 
-- Provide response as a diff highlighted code snippet.
+- Start response with a highlighted diff of fixed code snippet.
 - Strictly rely on the ARIA snapshot of the page.
 - Avoid adding any new code.
 - Avoid adding comments to the code.
 - Avoid changing the test logic.
 - Use only role-based locators: getByRole, getByLabel, etc.
-- Add concise note about applied changes.
+- For 'heading' role try to adjust level first
+- Add concise notes about applied changes at the end of your response.
 - If the test may be correct and there is a bug in the page, note it.
 
 {error}
