@@ -28,7 +28,7 @@ Code snippet of the failing test:
 ARIA snapshot of the page:
 
 {ariaSnapshot}
-`.trim();
+`;
 
 export async function attachFixWithAI(page: Page, testInfo: TestInfo) {
   const willBeRetried = testInfo.retry < testInfo.project.retries;
@@ -56,7 +56,8 @@ function buildPrompt({ title, error, ariaSnapshot }: {
     .replace('{title}', title)
     .replace('{error}', errorMessage)
     .replace('{snippet}', snippet)
-    .replace('{ariaSnapshot}', ariaSnapshot);
+    .replace('{ariaSnapshot}', ariaSnapshot)
+    .trim();
 }
 
 /**
