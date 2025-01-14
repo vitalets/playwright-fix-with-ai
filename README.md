@@ -54,4 +54,6 @@ An example repo for demonstration [fixing Playwright tests with AI](https://dev.
 
 9. Paste prompt to [ChatGPT](https://chatgpt.com/)
 
-10. Apply ChatGPT suggegted changes to fix the test
+10. Apply ChatGPT suggested changes to fix the test
+
+![ChatGPT suggested fix](https://github.com/user-attachments/assets/55a11942-8d5b-4cc5-881f-a72b61e0397e)
