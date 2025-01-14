@@ -2,7 +2,7 @@
 
 An example repo for demonstration [fixing Playwright tests with AI](https://dev.to/vitalets/fix-with-ai-button-in-playwright-html-report-2j37).
 
-To check it yourself, follow the instructions:
+### Instruction
 
 1. Clone the repo
    ```
