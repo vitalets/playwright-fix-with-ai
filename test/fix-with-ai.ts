@@ -2,9 +2,8 @@
  * Fix with AI attachment to failed Playwright tests.
  */
 import fs from 'node:fs';
+import path from 'node:path';
 import { Page, TestInfo, TestInfoError } from '@playwright/test';
-// @ts-ignore
-import { parseStackTraceLine } from 'playwright-core/lib/utilsBundle';
 
 const promptTemplate = `
 You are an expert in Playwright testing. 
@@ -93,8 +92,121 @@ function getErrorLocation(error: TestInfoError) {
   if (firstStackLine === -1) firstStackLine = lines.length;
   const stackLines = lines.slice(firstStackLine);
   for (const line of stackLines) {
-    const frame = parseStackTraceLine(line);
+    const frame = parseStackFrame(line, path.sep, false);
     if (!frame || !frame.file || frame.file.includes(`node_modules`)) continue;
     return { file: frame.file, column: frame.column || 0, line: frame.line || 0 };
   }
+}
+
+type StackFrame = {
+  file: string;
+  line: number;
+  column: number;
+  function?: string;
+};
+
+/**
+ * See: https://github.com/microsoft/playwright/blob/release-1.51/packages/playwright-core/src/utils/isomorphic/stackTrace.ts
+ */
+function parseStackFrame(
+  text: string,
+  pathSeparator: string,
+  showInternalStackFrames: boolean,
+): StackFrame | null {
+  const match = text && text.match(re);
+  if (!match) return null;
+
+  let fname = match[2];
+  let file = match[7];
+  if (!file) return null;
+  if (!showInternalStackFrames && (file.startsWith('internal') || file.startsWith('node:')))
+    return null;
+
+  const line = match[8];
+  const column = match[9];
+  const closeParen = match[11] === ')';
+
+  const frame: StackFrame = {
+    file: '',
+    line: 0,
+    column: 0,
+  };
+
+  if (line) frame.line = Number(line);
+
+  if (column) frame.column = Number(column);
+
+  if (closeParen && file) {
+    // make sure parens are balanced
+    // if we have a file like "asdf) [as foo] (xyz.js", then odds are
+    // that the fname should be += " (asdf) [as foo]" and the file
+    // should be just "xyz.js"
+    // walk backwards from the end to find the last unbalanced (
+    let closes = 0;
+    for (let i = file.length - 1; i > 0; i--) {
+      if (file.charAt(i) === ')') {
+        closes++;
+      } else if (file.charAt(i) === '(' && file.charAt(i - 1) === ' ') {
+        closes--;
+        if (closes === -1 && file.charAt(i - 1) === ' ') {
+          const before = file.slice(0, i - 1);
+          const after = file.slice(i + 1);
+          file = after;
+          fname += ` (${before}`;
+          break;
+        }
+      }
+    }
+  }
+
+  if (fname) {
+    const methodMatch = fname.match(methodRe);
+    if (methodMatch) fname = methodMatch[1];
+  }
+
+  if (file) {
+    if (file.startsWith('file://')) file = fileURLToPath(file, pathSeparator);
+    frame.file = file;
+  }
+
+  if (fname) frame.function = fname;
+
+  return frame;
+}
+
+const re = new RegExp(
+  '^' +
+    // Sometimes we strip out the '    at' because it's noisy
+    '(?:\\s*at )?' +
+    // $1 = ctor if 'new'
+    '(?:(new) )?' +
+    // $2 = function name (can be literally anything)
+    // May contain method at the end as [as xyz]
+    '(?:(.*?) \\()?' +
+    // (eval at <anonymous> (file.js:1:1),
+    // $3 = eval origin
+    // $4:$5:$6 are eval file/line/col, but not normally reported
+    '(?:eval at ([^ ]+) \\((.+?):(\\d+):(\\d+)\\), )?' +
+    // file:line:col
+    // $7:$8:$9
+    // $10 = 'native' if native
+    '(?:(.+?):(\\d+):(\\d+)|(native))' +
+    // maybe close the paren, then end
+    // if $11 is ), then we only allow balanced parens in the filename
+    // any imbalance is placed on the fname.  This is a heuristic, and
+    // bound to be incorrect in some edge cases.  The bet is that
+    // having weird characters in method names is more common than
+    // having weird characters in filenames, which seems reasonable.
+    '(\\)?)$',
+);
+
+const methodRe = /^(.*?) \[as (.*?)\]$/;
+
+function fileURLToPath(fileUrl: string, pathSeparator: string): string {
+  if (!fileUrl.startsWith('file://')) return fileUrl;
+
+  let path = decodeURIComponent(fileUrl.slice(7));
+  if (path.startsWith('/') && /^[a-zA-Z]:/.test(path.slice(1))) path = path.slice(1);
+
+  return path.replace(/\//g, pathSeparator);
 }

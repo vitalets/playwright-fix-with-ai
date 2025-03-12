@@ -5,10 +5,8 @@
     "test": "npx playwright test"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.1",
-    "@types/node": "^20.17.10",
-    "@types/stack-utils": "^2.0.3",
-    "stack-utils": "^2.0.6"
+    "@playwright/test": "^1.51.0",
+    "@types/node": "^20.17.10"
   },
   "license": "ISC"
 }
